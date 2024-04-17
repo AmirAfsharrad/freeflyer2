@@ -266,6 +266,25 @@ def generate_random_obstacles(num_obstacles=2, xy_low=ff.obs_region['xy_low'], x
     return {'position': positions, 'radius': radii}
 
 
+def generate_perfect_observations(positions, radii):
+    """
+    Generate a flat array containing position coordinates followed by radius for each observation.
+
+    Args:
+    positions (numpy.ndarray): An array of shape (n, 2) where n is the number of observations, and each element is an (x, y) tuple.
+    radii (numpy.ndarray): An array of shape (n,) containing radii corresponding to each position.
+
+    Returns:
+    numpy.ndarray: A flat array of shape (3n,) where each group of three elements contains the x coordinate, y coordinate, and radius for each observation.
+    """
+    n_obs = len(radii)
+    out = np.empty(shape=(3 * n_obs), dtype=float)
+    out[0::3] = positions[:, 0]  # x coordinates
+    out[1::3] = positions[:, 1]  # y coordinates
+    out[2::3] = radii  # radii
+
+    return out
+
 # ----------------------------------
 # Optimization problems
 def ocp_no_obstacle_avoidance(model: FreeflyerModel, state_init, state_final, obs):
@@ -392,13 +411,14 @@ def compute_reward_to_go(actions):
     return rewards_to_go
 
 
-def compute_constraint_to_go(states, obs_positions, obs_radii):
+def compute_constraint_to_go(states, obs_positions, obs_radii, n_obs):
     if len(states.shape) == 2:
         states = states[None, :, :]
     n_data, n_time = states.shape[0], states.shape[1]
     constraint_to_go = np.empty(shape=(n_data, n_time), dtype=float)
     for n in range(n_data):
-        constr_koz_n, constr_koz_violation_n = check_koz_constraint(states[n, :, :], obs_positions, obs_radii)
+        constr_koz_n, constr_koz_violation_n = check_koz_constraint(states[n, :, :], obs_positions[n, :n_obs[n]],
+                                                                    obs_radii[n, :n_obs[n]])
         constraint_to_go[n, :] = np.array([np.sum(constr_koz_violation_n[:, t:]) for t in range(n_time)])
 
     return constraint_to_go
