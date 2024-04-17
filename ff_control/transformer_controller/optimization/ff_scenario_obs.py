@@ -30,6 +30,7 @@ Lambda_inv = np.array([[0, 0.5, 1 / (4 * thrusters_lever_arm)],
                        [0, 0.5, -1 / (4 * thrusters_lever_arm)],
                        [0.5, 0, 1 / (4 * thrusters_lever_arm)]])
 
+dataset_scenario = 'var_obstacles'
 # Table, start and goal regions dimensions
 table = {
     'xy_low': np.array([0., 0.]),

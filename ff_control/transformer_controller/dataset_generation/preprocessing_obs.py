@@ -18,13 +18,13 @@ from torch.utils.data import Dataset
 from torch.utils.data.dataloader import DataLoader
 from torch.optim import AdamW
 
-from dynamics.freeflyer import compute_constraint_to_go, compute_reward_to_go
-from optimization.ff_scenario import obs, robot_radius, safety_margin
+from dynamics.freeflyer_obs import compute_constraint_to_go, compute_reward_to_go
+from optimization.ff_scenario_obs import robot_radius, safety_margin, dataset_scenario
 
 parser = argparse.ArgumentParser(description='transformer-ff')
-parser.add_argument('--data_dir', type=str, default='dataset',
+parser.add_argument('--data_dir', type=str, default='dataset/' + dataset_scenario,
                     help='defines directory from where to load files')
-parser.add_argument('--data_dir_torch', type=str, default='dataset/torch/v05',  # remember to change v0# depending on the dataset version loaded
+parser.add_argument('--data_dir_torch', type=str, default='dataset/' + dataset_scenario + '/torch/v05',  # remember to change v0# depending on the dataset version loaded
                     help='defines directory from where to load files')
 args = parser.parse_args()
 args.data_dir = root_folder + '/' + args.data_dir
@@ -38,29 +38,29 @@ data_param = np.load(args.data_dir + '/dataset-ff-v05-param.npz')
 
 # Pre-compute torch states roe and rtn
 states_scp = data_scp['states_scp']
-'''if 'minimum' in dataset_scenario:
-    mask = np.min(states_scp[:,:,0], axis = 1) > -2.5
-    states_scp = states_scp[mask,:,:]'''
 print('States shapes', states_scp.shape[0])
 torch_states_scp = torch.from_numpy(states_scp)
 torch.save(torch_states_scp, args.data_dir_torch + '/torch_states_scp.pth')
 
 states_cvx = data_cvx['states_cvx']
-'''if 'minimum' in dataset_scenario:
-    states_cvx = states_cvx[mask,:,:]'''
 torch_states_cvx = torch.from_numpy(states_cvx)
 torch.save(torch_states_cvx, args.data_dir_torch + '/torch_states_cvx.pth')
 
+# Pre-compute torch observations
+observations_scp = data_scp['observations_scp']
+torch_observations_scp = torch.from_numpy(observations_scp)
+torch.save(torch_observations_scp, args.data_dir_torch + '/torch_observations_scp.pth')
+
+observations_cvx = data_cvx['observations_cvx']
+torch_observations_cvx = torch.from_numpy(observations_cvx)
+torch.save(torch_observations_cvx, args.data_dir_torch + '/torch_observations_cvx.pth')
+
 # Pre-compute torch actions
 actions_scp = data_scp['actions_scp']
-'''if 'minimum' in dataset_scenario:
-    actions_scp = actions_scp[mask,:,:]'''
 torch_actions_scp = torch.from_numpy(actions_scp)
 torch.save(torch_actions_scp, args.data_dir_torch + '/torch_actions_scp.pth')
 
 actions_cvx = data_cvx['actions_cvx']
-'''if 'minimum' in dataset_scenario:
-    actions_cvx = actions_cvx[mask,:,:]'''
 torch_actions_cvx = torch.from_numpy(actions_cvx)
 torch.save(torch_actions_cvx, args.data_dir_torch + '/torch_actions_cvx.pth')
 
@@ -71,25 +71,23 @@ torch.save(torch_rtgs_scp, args.data_dir_torch + '/torch_rtgs_scp.pth')
 torch_rtgs_cvx = torch.from_numpy(compute_reward_to_go(actions_cvx))
 torch.save(torch_rtgs_cvx, args.data_dir_torch + '/torch_rtgs_cvx.pth')
 
-obs = copy.deepcopy(obs)
-obs['radius'] = (obs['radius'] + robot_radius)*safety_margin
-torch_ctgs_scp = torch.from_numpy(compute_constraint_to_go(states_scp, obs['position'], obs['radius']))
+n_obs = data_param['n_obs']
+obs_position = data_param['obs_position']
+obs_radius = data_param['obs_radius']
+
+# obs = copy.deepcopy(obs)
+# obs['radius'] = (obs['radius'] + robot_radius) * safety_margin
+obs_radius = (obs_radius + robot_radius) * safety_margin
+torch_ctgs_scp = torch.from_numpy(compute_constraint_to_go(states_scp, obs_position, obs_radius, n_obs))
 torch.save(torch_ctgs_scp, args.data_dir_torch + '/torch_ctgs_scp.pth')
 
-torch_ctgs_cvx = torch.from_numpy(compute_constraint_to_go(states_cvx, obs['position'], obs['radius']))
+torch_ctgs_cvx = torch.from_numpy(compute_constraint_to_go(states_cvx, obs_position, obs_radius, n_obs))
 torch.save(torch_ctgs_cvx, args.data_dir_torch + '/torch_ctgs_cvx.pth')
 
-# Data param
-'''if 'minimum' in dataset_scenario:
-    target_state =  data_param['target_state'][mask,:]
-    time = data_param['time'][mask,:]
-    dtime =  data_param['dtime'][mask]
-    np.savez_compressed(root_folder + '/dataset' + dataset_scenario +'/dataset-quad-v05-param_corrected', target_state = target_state, time = time, dtime = dtime)
-'''
 # Permutation
 if states_cvx.shape[0] != states_scp.shape[0]:
     raise RuntimeError('Different dimensions of cvx and scp datasets.')
-perm = np.random.permutation(states_cvx.shape[0]*2)
+perm = np.random.permutation(states_cvx.shape[0] * 2)
 np.save(args.data_dir_torch + '/permutation.npy', perm)
 
 print('Completed\n')

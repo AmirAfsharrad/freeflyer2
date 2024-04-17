@@ -5,8 +5,9 @@ root_folder = os.path.abspath(os.path.dirname(os.path.dirname(os.path.abspath(__
 sys.path.append(root_folder)
 
 from dynamics.freeflyer_obs import FreeflyerModel, sample_init_target, ocp_no_obstacle_avoidance, \
-    ocp_obstacle_avoidance, generate_random_obstacles
-from optimization.ff_scenario_obs import N_STATE, N_ACTION, N_CLUSTERS, N_OBS_MAX, n_time_rpod, dt, T, S
+    ocp_obstacle_avoidance, generate_random_obstacles, generate_perfect_observations
+from optimization.ff_scenario_obs import (N_STATE, N_ACTION, N_CLUSTERS, N_OBS_MAX, n_time_rpod, dt, T, S,
+                                          dataset_scenario)
 import numpy as np
 from multiprocessing import Pool, set_start_method
 import itertools
@@ -21,7 +22,7 @@ def for_computation(input):
 
     # Randomic sample of initial and final conditions
     init_state, target_state = sample_init_target()
-    obs = generate_random_obstacles(num_obstacles=np.random.randint(0, N_OBS_MAX))
+    obs = generate_random_obstacles(num_obstacles=np.random.randint(1, N_OBS_MAX + 1))
 
     # Output dictionary initialization
     out = {'feasible': True,
@@ -76,13 +77,13 @@ def for_computation(input):
 if __name__ == '__main__':
 
     N_data = 200000
-    # N_data = 10
+    N_data = 10
     set_start_method('spawn')
 
     n_S = N_STATE  # state size
     n_A = N_ACTION  # action size
     n_C = N_CLUSTERS  # cluster size
-    n_obs_max = N_OBS_MAX   # maximum number of obstacles
+    n_obs_max = N_OBS_MAX  # maximum number of obstacles
 
     # Model initialization
     ff_model = FreeflyerModel()
@@ -105,6 +106,9 @@ if __name__ == '__main__':
     n_obs = - np.ones(shape=(N_data,), dtype=int)
     obs_position = np.empty(shape=(N_data, n_obs_max, 2), dtype=float)
     obs_radius = np.empty(shape=(N_data, n_obs_max), dtype=float)
+
+    # For other types of observation (such as a 2d map), the following line should be replaced
+    observations = np.empty(shape=(N_data, n_time_rpod, 3 * n_obs_max), dtype=float)
 
     i_unfeas = []
 
@@ -132,19 +136,25 @@ if __name__ == '__main__':
             obs_position[i, :n_obs[i]] = res['obstacles']['position']
             obs_radius[i, :n_obs[i]] = res['obstacles']['radius']
 
+            # For other types of observation (such as a 2d map), the following line should be replaced
+            observations[i, :, :3 * n_obs[i]] = generate_perfect_observations(res['obstacles']['position'],
+                                                                           res['obstacles']['radius'])
+
         # Else add the index to the list
         else:
             i_unfeas += [i]
 
-        if i % 50000 == 0:
-        # if i % 5 == 0:
-            np.savez_compressed(root_folder + '/dataset/dataset-ff-v05-scp' + str(i), states_scp=states_scp,
-                                actions_scp=actions_scp, actions_t_scp=actions_t_scp, i_unfeas=i_unfeas)
-            np.savez_compressed(root_folder + '/dataset/dataset-ff-v05-cvx' + str(i), states_cvx=states_cvx,
-                                actions_cvx=actions_cvx, actions_t_cvx=actions_t_cvx, i_unfeas=i_unfeas)
-            np.savez_compressed(root_folder + '/dataset/dataset-ff-v05-param' + str(i), target_state=target_state,
-                                time=time, dtime=dtime, n_obs=n_obs, obs_position=obs_position, obs_radius=obs_radius,
+        # if i % 50000 == 0:
+        if i % 5 == 0:
+            np.savez_compressed(root_folder + '/dataset/' + dataset_scenario + '/dataset-ff-v05-scp' + str(i),
+                                states_scp=states_scp, actions_scp=actions_scp, actions_t_scp=actions_t_scp,
                                 i_unfeas=i_unfeas)
+            np.savez_compressed(root_folder + '/dataset/' + dataset_scenario + '/dataset-ff-v05-cvx' + str(i),
+                                states_cvx=states_cvx, actions_cvx=actions_cvx, actions_t_cvx=actions_t_cvx,
+                                i_unfeas=i_unfeas)
+            np.savez_compressed(root_folder + '/dataset/' + dataset_scenario + '/dataset-ff-v05-param' + str(i),
+                                target_state=target_state, time=time, dtime=dtime, n_obs=n_obs,
+                                obs_position=obs_position, obs_radius=obs_radius)
 
     # Remove unfeasible data points
     if i_unfeas:
@@ -165,9 +175,12 @@ if __name__ == '__main__':
         obs_radius = np.delete(obs_radius, i_unfeas, axis=0)
 
     #  Save dataset (local folder for the workstation)
-    np.savez_compressed(root_folder + '/dataset/dataset-ff-v05-scp', states_scp=states_scp, actions_scp=actions_scp,
-                        actions_t_scp=actions_t_scp)
-    np.savez_compressed(root_folder + '/dataset/dataset-ff-v05-cvx', states_cvx=states_cvx, actions_cvx=actions_cvx,
-                        actions_t_cvx=actions_t_cvx)
-    np.savez_compressed(root_folder + '/dataset/dataset-ff-v05-param', target_state=target_state, time=time,
-                        dtime=dtime, n_obs=n_obs, obs_position=obs_position, obs_radius=obs_radius)
+    np.savez_compressed(root_folder + '/dataset/' + dataset_scenario + '/dataset-ff-v05-scp', states_scp=states_scp,
+                        observations_scp=observations, actions_scp=actions_scp, actions_t_scp=actions_t_scp)
+    np.savez_compressed(root_folder + '/dataset/' + dataset_scenario + '/dataset-ff-v05-cvx', states_cvx=states_cvx,
+                        observations_cvx=observations, actions_cvx=actions_cvx, actions_t_cvx=actions_t_cvx)
+    np.savez_compressed(root_folder + '/dataset/' + dataset_scenario + '/dataset-ff-v05-param',
+                        target_state=target_state, time=time, dtime=dtime, n_obs=n_obs, obs_position=obs_position,
+                        obs_radius=obs_radius)
+
+
