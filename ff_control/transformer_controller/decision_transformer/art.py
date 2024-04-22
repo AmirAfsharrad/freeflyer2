@@ -1,3 +1,4 @@
+
 import math
 import os
 from dataclasses import dataclass
@@ -400,7 +401,7 @@ class AutonomousFreeflyerTransformer_VarObs(DecisionTransformerPreTrainedModel):
         self.embed_return = torch.nn.Linear(1, config.hidden_size)
         self.embed_constraint = torch.nn.Linear(1, config.hidden_size)
         self.embed_state = torch.nn.Linear(config.state_dim, config.hidden_size)
-        self.embed_observation = nn.Linear(config.obs_dim, config.hidden_size)  # New embedding layer for observations
+        self.embed_observation = nn.Linear(config.single_obs_dim, config.hidden_size)  # New embedding layer for observations
         self.embed_action = torch.nn.Linear(config.act_dim, config.hidden_size)
 
         self.embed_ln = nn.LayerNorm(config.hidden_size)
@@ -483,7 +484,10 @@ class AutonomousFreeflyerTransformer_VarObs(DecisionTransformerPreTrainedModel):
 
         # embed each modality with a different head
         state_embeddings = self.embed_state(states)
-        observation_embeddings = self.embed_observation(observations)
+        observation_embeddings = []
+        observation_blocks = observations.split(self.config.single_obs_dim, dim=2)
+        for obs in observation_blocks:
+            observation_embeddings.append(self.embed_observation(obs))
         action_embeddings = self.embed_action(actions)
         goal_embeddings = self.embed_goal(goal)
         returns_embeddings = self.embed_return(returns_to_go)
@@ -492,7 +496,7 @@ class AutonomousFreeflyerTransformer_VarObs(DecisionTransformerPreTrainedModel):
 
         # time embeddings are treated similar to positional embeddings
         state_embeddings = state_embeddings + time_embeddings
-        observation_embeddings = observation_embeddings + time_embeddings
+        observation_embeddings = torch.stack(observation_embeddings).sum() + time_embeddings
         action_embeddings = action_embeddings + time_embeddings
         goal_embeddings = goal_embeddings + time_embeddings
         returns_embeddings = returns_embeddings + time_embeddings

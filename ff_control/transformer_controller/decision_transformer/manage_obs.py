@@ -25,6 +25,7 @@ from accelerate import Accelerator
 from decision_transformer.art import AutonomousFreeflyerTransformer
 from dynamics.freeflyer_obs import FreeflyerModel, check_koz_constraint
 # from optimization.ff_scenario_obs import obs, safety_margin, robot_radius, table
+from optimization.ff_scenario_obs import SINGLE_OBS_DIM
 import time
 
 # select device based on availability of GPU
@@ -46,6 +47,7 @@ class RpodDataset(Dataset):
         self.data = data
         self.n_data, self.max_len, self.n_state = self.data['states'].shape
         self.n_observation = self.data['observations'].shape[2]
+        self.n_single_observation = SINGLE_OBS_DIM
         self.n_action = self.data['actions'].shape[2]
         self.mdp_constr = mdp_constr
         self.target = target

@@ -10,7 +10,8 @@ import numpy as np
 N_STATE = 6
 N_ACTION = 3
 N_CLUSTERS = 4
-N_OBS_MAX = 5
+N_OBS_MAX = 4
+SINGLE_OBS_DIM = 3
 
 # time problem constants
 S = 101  # number of control switches
