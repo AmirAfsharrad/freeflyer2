@@ -252,7 +252,7 @@ def generate_random_obstacles(num_obstacles=2, xy_low=ff.obs_region['xy_low'], x
 
             # Check for overlap if required, considering the margin between obstacles
             if prevent_overlap and i > 0:
-                min_distance = radii[i] + radii[:i] + margin_between_obstacles
+                min_distance = (radii[i] + radii[:i] + 2 * ff.robot_radius) * ff.safety_margin + margin_between_obstacles
                 if any(np.linalg.norm(candidate_position - positions[:i], axis=1) < min_distance):
                     continue  # If overlap or insufficient margin occurs, try again
             positions[i] = candidate_position

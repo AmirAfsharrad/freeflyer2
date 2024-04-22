@@ -22,7 +22,13 @@ def for_computation(input):
 
     # Randomic sample of initial and final conditions
     init_state, target_state = sample_init_target()
-    obs = generate_random_obstacles(num_obstacles=np.random.randint(1, N_OBS_MAX + 1))
+
+    # Do a non-uniform distribution over the number of obstacles
+    weights = np.linspace(1, N_OBS_MAX, N_OBS_MAX)
+    probabilities = weights / weights.sum()
+    num_obstacles = np.random.choice(np.arange(1, N_OBS_MAX + 1), p=probabilities)
+    print(num_obstacles)
+    obs = generate_random_obstacles(num_obstacles=num_obstacles)
 
     # Output dictionary initialization
     out = {'feasible': True,
@@ -46,7 +52,8 @@ def for_computation(input):
         #  Solve scp with obstacles
         try:
             traj_scp_i, J_scp_i, iter_scp_i, feas_scp_i, = ocp_obstacle_avoidance(ff_model, traj_cvx_i['states'],
-                                                                                  traj_cvx_i['actions_G'], init_state,
+                                                                                  traj_cvx_i['actions_G'],
+                                                                                  init_state,
                                                                                   target_state, obs)
 
             if np.char.equal(feas_scp_i, 'optimal'):
@@ -77,7 +84,7 @@ def for_computation(input):
 if __name__ == '__main__':
 
     N_data = 200000
-    N_data = 10
+    # N_data = 10
     set_start_method('spawn')
 
     n_S = N_STATE  # state size
@@ -138,14 +145,14 @@ if __name__ == '__main__':
 
             # For other types of observation (such as a 2d map), the following line should be replaced
             observations[i, :, :3 * n_obs[i]] = generate_perfect_observations(res['obstacles']['position'],
-                                                                           res['obstacles']['radius'])
+                                                                              res['obstacles']['radius'])
 
         # Else add the index to the list
         else:
             i_unfeas += [i]
 
-        # if i % 50000 == 0:
-        if i % 5 == 0:
+        if i % 50000 == 0:
+        # if i % 5 == 0:
             np.savez_compressed(root_folder + '/dataset/' + dataset_scenario + '/dataset-ff-v05-scp' + str(i),
                                 states_scp=states_scp, actions_scp=actions_scp, actions_t_scp=actions_t_scp,
                                 i_unfeas=i_unfeas)
@@ -182,5 +189,3 @@ if __name__ == '__main__':
     np.savez_compressed(root_folder + '/dataset/' + dataset_scenario + '/dataset-ff-v05-param',
                         target_state=target_state, time=time, dtime=dtime, n_obs=n_obs, obs_position=obs_position,
                         obs_radius=obs_radius)
-
-
