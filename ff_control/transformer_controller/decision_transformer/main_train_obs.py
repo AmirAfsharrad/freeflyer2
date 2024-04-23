@@ -20,6 +20,7 @@ datasets, dataloaders = TTO_manager.get_train_val_test_data(mdp_constr=model_con
 train_loader, eval_loader, test_loader = dataloaders
 n_state = train_loader.dataset.n_state
 n_observation = train_loader.dataset.n_observation
+n_single_observation = train_loader.dataset.n_single_observation
 n_data = train_loader.dataset.n_data
 n_action = train_loader.dataset.n_action
 n_time = train_loader.dataset.max_len
@@ -28,6 +29,7 @@ n_time = train_loader.dataset.max_len
 config = DecisionTransformerConfig(
     state_dim=n_state,
     obs_dim=n_observation,
+    single_obs_dim=n_single_observation,
     act_dim=n_action,
     hidden_size=384,
     max_ep_len=n_time,
