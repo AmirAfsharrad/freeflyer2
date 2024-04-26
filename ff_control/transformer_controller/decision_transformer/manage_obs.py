@@ -61,6 +61,7 @@ class RpodDataset(Dataset):
                               for i in ix]).view(self.max_len, self.n_state).float()
         observations = torch.stack([self.data['observations'][i, :, :]
                                     for i in ix]).view(self.max_len, self.n_observation).float()
+        n_obs = [self.data['data_param']['n_obs'][i] for i in ix]
         actions = torch.stack([self.data['actions'][i, :, :]
                                for i in ix]).view(self.max_len, self.n_action).float()
         rtgs = torch.stack([self.data['rtgs'][i, :]
@@ -75,11 +76,11 @@ class RpodDataset(Dataset):
 
         if self.target == False:
             if not self.mdp_constr:
-                return states, observations, actions, rtgs, goal, timesteps, attention_mask, time_discr, time_sec, ix
+                return states, observations, n_obs, actions, rtgs, goal, timesteps, attention_mask, time_discr, time_sec, ix
             else:
                 ctgs = torch.stack([self.data['ctgs'][i, :]
                                     for i in ix]).view(self.max_len, 1).float()
-                return states, observations, actions, rtgs, ctgs, goal, timesteps, attention_mask, time_discr, time_sec, ix
+                return states, observations, n_obs, actions, rtgs, ctgs, goal, timesteps, attention_mask, time_discr, time_sec, ix
         else:
             target_states = torch.stack([self.data['target_states'][i, :, :]
                                          for i in ix]).view(self.max_len - 1, self.n_state).float()
@@ -87,7 +88,7 @@ class RpodDataset(Dataset):
                                           for i in ix]).view(self.max_len, self.n_action).float()
 
             if not self.mdp_constr:
-                return states, observations, actions, rtgs, goal, target_states, target_actions, timesteps, attention_mask, time_discr, time_sec, ix
+                return states, observations, n_obs, actions, rtgs, goal, target_states, target_actions, timesteps, attention_mask, time_discr, time_sec, ix
             else:
                 ctgs = torch.stack([self.data['ctgs'][i, :]
                                     for i in ix]).view(self.max_len, 1).float()
@@ -100,6 +101,7 @@ class RpodDataset(Dataset):
                               for i in ix]).view(self.max_len, self.n_state).float().unsqueeze(0)
         observations = torch.stack([self.data['observations'][i, :, :]
                                     for i in ix]).view(self.max_len, self.n_observation).float().unsqueeze(0)
+        n_obs = [self.data['data_param']['n_obs'][i] for i in ix]
         actions = torch.stack([self.data['actions'][i, :, :]
                                for i in ix]).view(self.max_len, self.n_action).float().unsqueeze(0)
         rtgs = torch.stack([self.data['rtgs'][i, :]
@@ -114,11 +116,11 @@ class RpodDataset(Dataset):
 
         if self.target == False:
             if not self.mdp_constr:
-                return states, observations, actions, rtgs, goal, timesteps, attention_mask, time_discr, time_sec, ix
+                return states, observations, n_obs, actions, rtgs, goal, timesteps, attention_mask, time_discr, time_sec, ix
             else:
                 ctgs = torch.stack([self.data['ctgs'][i, :]
                                     for i in ix]).view(self.max_len, 1).float()
-                return states, observations, actions, rtgs, ctgs, goal, timesteps, attention_mask, time_discr, time_sec, ix
+                return states, observations, n_obs, actions, rtgs, ctgs, goal, timesteps, attention_mask, time_discr, time_sec, ix
         else:
             target_states = torch.stack([self.data['target_states'][i, :, :]
                                          for i in ix]).view(self.max_len - 1, self.n_state).float().unsqueeze(0)
@@ -126,7 +128,7 @@ class RpodDataset(Dataset):
                                           for i in ix]).view(self.max_len, self.n_action).float().unsqueeze(0)
 
             if not self.mdp_constr:
-                return states, observations, actions, rtgs, goal, target_states, target_actions, timesteps, attention_mask, time_discr, time_sec, ix
+                return states, observations, n_obs, actions, rtgs, goal, target_states, target_actions, timesteps, attention_mask, time_discr, time_sec, ix
             else:
                 ctgs = torch.stack([self.data['ctgs'][i, :]
                                     for i in ix]).view(self.max_len, 1).float()
@@ -152,6 +154,7 @@ def get_train_val_test_data(mdp_constr, dataset_scenario, timestep_norm):
     torch_data, data_param = import_dataset_for_DT_eval_vXX(dataset_scenario, mdp_constr)
     states_norm, states_mean, states_std = normalize(torch_data['torch_states'], timestep_norm)
     observations_norm, observations_mean, observations_std = normalize(torch_data['torch_observations'], timestep_norm)
+
     actions_norm, actions_mean, actions_std = normalize(torch_data['torch_actions'], timestep_norm)
     goal_norm, goal_mean, goal_std = normalize(torch_data['torch_goal'], timestep_norm)
     target_states_norm = states_norm[:, 1:, :].clone().detach()
@@ -190,7 +193,8 @@ def get_train_val_test_data(mdp_constr, dataset_scenario, timestep_norm):
         'goal': goal_norm[:n, :],
         'data_param': {
             'time_discr': data_param['time_discr'][:n],
-            'time_sec': data_param['time_sec'][:n, :]
+            'time_sec': data_param['time_sec'][:n, :],
+            'n_obs': data_param['n_obs'][:n]
         },
         'data_stats': data_stats
     }
@@ -205,10 +209,12 @@ def get_train_val_test_data(mdp_constr, dataset_scenario, timestep_norm):
         'goal': goal_norm[n:, :],
         'data_param': {
             'time_discr': data_param['time_discr'][n:],
-            'time_sec': data_param['time_sec'][n:, :]
+            'time_sec': data_param['time_sec'][n:, :],
+            'n_obs': data_param['n_obs'][n:]
         },
         'data_stats': data_stats
     }
+
 
     # Create datasets
     train_dataset = RpodDataset(train_data, mdp_constr)

@@ -1,9 +1,9 @@
-
 import math
 import os
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
 
+import numpy
 import torch
 import torch.utils.checkpoint
 from torch import nn
@@ -20,7 +20,8 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers.models.decision_transformer.configuration_decision_transformer import DecisionTransformerConfig
-from transformers.models.decision_transformer.modeling_decision_transformer import DecisionTransformerPreTrainedModel, DecisionTransformerGPT2Model, DecisionTransformerOutput
+from transformers.models.decision_transformer.modeling_decision_transformer import DecisionTransformerPreTrainedModel, \
+    DecisionTransformerGPT2Model, DecisionTransformerOutput
 
 DECISION_TRANSFORMER_START_DOCSTRING = r"""
     This model is a PyTorch [torch.nn.Module](https://pytorch.org/docs/stable/nn.html#torch.nn.Module) sub-class. Use
@@ -51,6 +52,7 @@ DECISION_TRANSFORMER_INPUTS_DOCSTRING = r"""
 """
 
 _CONFIG_FOR_DOC = "DecisionTransformerConfig"
+
 
 class AutonomousFreeflyerTransformer(DecisionTransformerPreTrainedModel):
     """
@@ -89,17 +91,17 @@ class AutonomousFreeflyerTransformer(DecisionTransformerPreTrainedModel):
     @add_start_docstrings_to_model_forward(DECISION_TRANSFORMER_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @replace_return_docstrings(output_type=DecisionTransformerOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
-        self,
-        states: Optional[torch.FloatTensor] = None,
-        actions: Optional[torch.FloatTensor] = None,
-        goal: Optional[torch.FloatTensor] = None,
-        returns_to_go: Optional[torch.FloatTensor] = None,
-        constraints_to_go: Optional[torch.FloatTensor] = None,
-        timesteps: Optional[torch.LongTensor] = None,
-        attention_mask: Optional[torch.FloatTensor] = None,
-        output_hidden_states: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+            self,
+            states: Optional[torch.FloatTensor] = None,
+            actions: Optional[torch.FloatTensor] = None,
+            goal: Optional[torch.FloatTensor] = None,
+            returns_to_go: Optional[torch.FloatTensor] = None,
+            constraints_to_go: Optional[torch.FloatTensor] = None,
+            timesteps: Optional[torch.LongTensor] = None,
+            attention_mask: Optional[torch.FloatTensor] = None,
+            output_hidden_states: Optional[bool] = None,
+            output_attentions: Optional[bool] = None,
+            return_dict: Optional[bool] = None,
     ) -> Union[Tuple[torch.FloatTensor], DecisionTransformerOutput]:
         r"""
         Returns:
@@ -170,7 +172,9 @@ class AutonomousFreeflyerTransformer(DecisionTransformerPreTrainedModel):
         # this makes the sequence look like (T_1, R_1, C_1 s_1, a_1, T_2, R_2, C_2, s_2, a_2, ...)
         # which works nice in an autoregressive sense since states predict actions
         stacked_inputs = (
-            torch.stack((goal_embeddings, returns_embeddings, constraints_embeddings, state_embeddings, action_embeddings), dim=1)
+            torch.stack(
+                (goal_embeddings, returns_embeddings, constraints_embeddings, state_embeddings, action_embeddings),
+                dim=1)
             .permute(0, 2, 1, 3)
             .reshape(batch_size, 5 * seq_length, self.hidden_size)
         )
@@ -212,6 +216,7 @@ class AutonomousFreeflyerTransformer(DecisionTransformerPreTrainedModel):
             attentions=encoder_outputs.attentions,
         )
 
+
 class AutonomousFreeflyerTransformer_pred_time(DecisionTransformerPreTrainedModel):
     """
 
@@ -251,18 +256,18 @@ class AutonomousFreeflyerTransformer_pred_time(DecisionTransformerPreTrainedMode
     @add_start_docstrings_to_model_forward(DECISION_TRANSFORMER_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @replace_return_docstrings(output_type=DecisionTransformerOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
-        self,
-        states: Optional[torch.FloatTensor] = None,
-        actions: Optional[torch.FloatTensor] = None,
-        goal: Optional[torch.FloatTensor] = None,
-        returns_to_go: Optional[torch.FloatTensor] = None,
-        constraints_to_go: Optional[torch.FloatTensor] = None,
-        times_to_go: Optional[torch.FloatTensor] = None,
-        timesteps: Optional[torch.LongTensor] = None,
-        attention_mask: Optional[torch.FloatTensor] = None,
-        output_hidden_states: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+            self,
+            states: Optional[torch.FloatTensor] = None,
+            actions: Optional[torch.FloatTensor] = None,
+            goal: Optional[torch.FloatTensor] = None,
+            returns_to_go: Optional[torch.FloatTensor] = None,
+            constraints_to_go: Optional[torch.FloatTensor] = None,
+            times_to_go: Optional[torch.FloatTensor] = None,
+            timesteps: Optional[torch.LongTensor] = None,
+            attention_mask: Optional[torch.FloatTensor] = None,
+            output_hidden_states: Optional[bool] = None,
+            output_attentions: Optional[bool] = None,
+            return_dict: Optional[bool] = None,
     ) -> Union[Tuple[torch.FloatTensor], DecisionTransformerOutput]:
         r"""
         Returns:
@@ -335,7 +340,8 @@ class AutonomousFreeflyerTransformer_pred_time(DecisionTransformerPreTrainedMode
         # this makes the sequence look like (T_1, R_1, C_1 s_1, t_1, a_1, T_2, R_2, C_2, s_2, t_2, a_2, ...)
         # which works nice in an autoregressive sense since states predict actions
         stacked_inputs = (
-            torch.stack((goal_embeddings, returns_embeddings, constraints_embeddings, state_embeddings, timetogo_embeddings, action_embeddings), dim=1)
+            torch.stack((goal_embeddings, returns_embeddings, constraints_embeddings, state_embeddings,
+                         timetogo_embeddings, action_embeddings), dim=1)
             .permute(0, 2, 1, 3)
             .reshape(batch_size, 6 * seq_length, self.hidden_size)
         )
@@ -343,7 +349,8 @@ class AutonomousFreeflyerTransformer_pred_time(DecisionTransformerPreTrainedMode
 
         # to make the attention mask fit the stacked inputs, have to stack it as well
         stacked_attention_mask = (
-            torch.stack((attention_mask, attention_mask, attention_mask, attention_mask, attention_mask, attention_mask), dim=1)
+            torch.stack(
+                (attention_mask, attention_mask, attention_mask, attention_mask, attention_mask, attention_mask), dim=1)
             .permute(0, 2, 1)
             .reshape(batch_size, 6 * seq_length)
         )
@@ -418,18 +425,19 @@ class AutonomousFreeflyerTransformer_VarObs(DecisionTransformerPreTrainedModel):
     @add_start_docstrings_to_model_forward(DECISION_TRANSFORMER_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @replace_return_docstrings(output_type=DecisionTransformerOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
-        self,
-        states: Optional[torch.FloatTensor] = None,
-        observations: Optional[torch.FloatTensor] = None,
-        actions: Optional[torch.FloatTensor] = None,
-        goal: Optional[torch.FloatTensor] = None,
-        returns_to_go: Optional[torch.FloatTensor] = None,
-        constraints_to_go: Optional[torch.FloatTensor] = None,
-        timesteps: Optional[torch.LongTensor] = None,
-        attention_mask: Optional[torch.FloatTensor] = None,
-        output_hidden_states: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+            self,
+            states: Optional[torch.FloatTensor] = None,
+            observations: Optional[torch.FloatTensor] = None,
+            num_obstacles: Optional[torch.FloatTensor] = None,
+            actions: Optional[torch.FloatTensor] = None,
+            goal: Optional[torch.FloatTensor] = None,
+            returns_to_go: Optional[torch.FloatTensor] = None,
+            constraints_to_go: Optional[torch.FloatTensor] = None,
+            timesteps: Optional[torch.LongTensor] = None,
+            attention_mask: Optional[torch.FloatTensor] = None,
+            output_hidden_states: Optional[bool] = None,
+            output_attentions: Optional[bool] = None,
+            return_dict: Optional[bool] = None,
     ) -> Union[Tuple[torch.FloatTensor], DecisionTransformerOutput]:
         r"""
         Returns:
@@ -484,10 +492,15 @@ class AutonomousFreeflyerTransformer_VarObs(DecisionTransformerPreTrainedModel):
 
         # embed each modality with a different head
         state_embeddings = self.embed_state(states)
-        observation_embeddings = []
         observation_blocks = observations.split(self.config.single_obs_dim, dim=2)
-        for obs in observation_blocks:
-            observation_embeddings.append(self.embed_observation(obs))
+        observation_embeddings = []
+        for j, obs in enumerate(observation_blocks):
+            obs_embedding = self.embed_observation(obs)
+            condition_mask = (j < num_obstacles[0]).unsqueeze(1).unsqueeze(2)
+            obs_mask = torch.where(condition_mask.expand_as(obs_embedding),
+                                   torch.ones_like(obs_embedding),
+                                   torch.zeros_like(obs_embedding))
+            observation_embeddings.append(obs_embedding * obs_mask)
         action_embeddings = self.embed_action(actions)
         goal_embeddings = self.embed_goal(goal)
         returns_embeddings = self.embed_return(returns_to_go)

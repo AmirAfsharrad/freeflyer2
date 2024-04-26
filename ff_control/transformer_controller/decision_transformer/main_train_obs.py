@@ -78,15 +78,15 @@ def evaluate():
     losses = []
     losses_state = []
     losses_action = []
-    losses_ttgs = []
     for step in range(eval_iters):
         data_iter = iter(eval_dataloader)
-        states_i, observations_i, actions_i, rtgs_i, ctgs_i, goal_i, timesteps_i, attention_mask_i, _, _, _ = (
-            next(data_iter))
+        states_i, observations_i, n_obs_i, actions_i, rtgs_i, ctgs_i, goal_i, timesteps_i, attention_mask_i, _, _, _ \
+            = (next(data_iter))
         with torch.no_grad():
             state_preds, action_preds = model(
                 states=states_i,
                 observations=observations_i,
+                num_obstacles=n_obs_i,
                 actions=actions_i,
                 goal=goal_i,
                 returns_to_go=rtgs_i,
@@ -126,10 +126,11 @@ log = {
 for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader, start=0):
         with accelerator.accumulate(model):
-            states_i, observations_i, actions_i, rtgs_i, ctgs_i, goal_i, timesteps_i, attention_mask_i, _, _, _ = batch
+            states_i, observations_i, n_obs_i, actions_i, rtgs_i, ctgs_i, goal_i, timesteps_i, attention_mask_i, _, _, _ = batch
             state_preds, action_preds = model(
                 states=states_i,
                 observations=observations_i,
+                num_obstacles=n_obs_i,
                 actions=actions_i,
                 goal=goal_i,
                 returns_to_go=rtgs_i,
