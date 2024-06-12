@@ -6,7 +6,7 @@ import numpy as np
 import numpy.linalg as la
 import matplotlib.pyplot as plt
 from transformers import DecisionTransformerConfig
-from decision_transformer.art import AutonomousFreeflyerTransformer_VarObs
+from decision_transformer.art import AutonomousFreeflyerTransformer_VarObs_ConcatObservations, AutonomousFreeflyerTransformer_VarObs
 import torch
 import decision_transformer.manage_obs as TTO_manager
 from decision_transformer.manage_obs import device
@@ -30,12 +30,13 @@ config = DecisionTransformerConfig(
     state_dim=n_state,
     obs_dim=n_observation,
     single_obs_dim=n_single_observation,
+    embed_entire_observation=False,
     act_dim=n_action,
     hidden_size=384,
     max_ep_len=n_time,
     vocab_size=1,
     action_tanh=False,
-    n_positions=2048,
+    n_positions=1024,
     n_layer=6,
     n_head=6,
     n_inner=None,
@@ -44,6 +45,7 @@ config = DecisionTransformerConfig(
     attn_pdrop=0.1,
     )
 model = AutonomousFreeflyerTransformer_VarObs(config)
+# model = AutonomousFreeflyerTransformer_VarObs_ConcatObservations(config)
 model_size = sum(t.numel() for t in model.parameters())
 print(f"GPT size: {model_size/1000**2:.1f}M parameters")
 model.to(device);

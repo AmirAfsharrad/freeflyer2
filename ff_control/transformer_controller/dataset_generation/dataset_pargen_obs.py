@@ -1,3 +1,4 @@
+import copy
 import os
 import sys
 
@@ -7,7 +8,7 @@ sys.path.append(root_folder)
 from dynamics.freeflyer_obs import FreeflyerModel, sample_init_target, ocp_no_obstacle_avoidance, \
     ocp_obstacle_avoidance, generate_random_obstacles, generate_perfect_observations
 from optimization.ff_scenario_obs import (N_STATE, N_ACTION, N_CLUSTERS, N_OBS_MAX, n_time_rpod, dt, T, S,
-                                          dataset_scenario)
+                                          dataset_scenario, obs_list)
 import numpy as np
 from multiprocessing import Pool, set_start_method
 import itertools
@@ -24,11 +25,16 @@ def for_computation(input):
     init_state, target_state = sample_init_target()
 
     # Do a non-uniform distribution over the number of obstacles
-    weights = np.linspace(1, N_OBS_MAX, N_OBS_MAX)
-    probabilities = weights / weights.sum()
-    num_obstacles = np.random.choice(np.arange(1, N_OBS_MAX + 1), p=probabilities)
-    print(num_obstacles)
-    obs = generate_random_obstacles(num_obstacles=num_obstacles)
+    # weights = np.linspace(1, N_OBS_MAX, N_OBS_MAX)
+    # probabilities = weights / weights.sum()
+    # probabilities = np.array([.1, .1, .3, .5])
+    # num_obstacles = np.random.choice(np.arange(1, N_OBS_MAX + 1), p=probabilities)
+    # num_obstacles = 4
+    # print(num_obstacles)
+    # obs = generate_random_obstacles(num_obstacles=num_obstacles)
+    # obs_index = np.random.choice(np.arange(0, 4))
+    obs_index = 0
+    obs = obs_list[obs_index]
 
     # Output dictionary initialization
     out = {'feasible': True,
@@ -45,7 +51,7 @@ def for_computation(input):
            }
 
     # Solve simplified problem -> without obstacle avoidance
-    traj_cvx_i, J_cvx_i, iter_cvx_i, feas_cvx_i = ocp_no_obstacle_avoidance(ff_model, init_state, target_state, obs)
+    traj_cvx_i, J_cvx_i, iter_cvx_i, feas_cvx_i = ocp_no_obstacle_avoidance(ff_model, init_state, target_state, copy.deepcopy(obs))
 
     if np.char.equal(feas_cvx_i, 'optimal'):
 
@@ -54,7 +60,7 @@ def for_computation(input):
             traj_scp_i, J_scp_i, iter_scp_i, feas_scp_i, = ocp_obstacle_avoidance(ff_model, traj_cvx_i['states'],
                                                                                   traj_cvx_i['actions_G'],
                                                                                   init_state,
-                                                                                  target_state, obs)
+                                                                                  target_state, copy.deepcopy(obs))
 
             if np.char.equal(feas_scp_i, 'optimal'):
                 # Save cvx and scp problems in the output dictionary
@@ -115,7 +121,7 @@ if __name__ == '__main__':
     obs_radius = np.empty(shape=(N_data, n_obs_max), dtype=float)
 
     # For other types of observation (such as a 2d map), the following line should be replaced
-    observations = np.empty(shape=(N_data, n_time_rpod, 3 * n_obs_max), dtype=float)
+    observations = np.zeros(shape=(N_data, n_time_rpod, 3 * n_obs_max), dtype=float)
 
     i_unfeas = []
 
@@ -146,6 +152,7 @@ if __name__ == '__main__':
             # For other types of observation (such as a 2d map), the following line should be replaced
             observations[i, :, :3 * n_obs[i]] = generate_perfect_observations(res['obstacles']['position'],
                                                                               res['obstacles']['radius'])
+            print(observations[i, 0, :])
 
         # Else add the index to the list
         else:
@@ -180,6 +187,7 @@ if __name__ == '__main__':
         n_obs = np.delete(n_obs, i_unfeas, axis=0)
         obs_position = np.delete(obs_position, i_unfeas, axis=0)
         obs_radius = np.delete(obs_radius, i_unfeas, axis=0)
+        observations = np.delete(observations, i_unfeas, axis=0)
 
     #  Save dataset (local folder for the workstation)
     np.savez_compressed(root_folder + '/dataset/' + dataset_scenario + '/dataset-ff-v05-scp', states_scp=states_scp,

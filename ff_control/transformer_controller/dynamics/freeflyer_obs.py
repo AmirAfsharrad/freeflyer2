@@ -414,6 +414,9 @@ def compute_reward_to_go(actions):
 def compute_constraint_to_go(states, obs_positions, obs_radii, n_obs):
     if len(states.shape) == 2:
         states = states[None, :, :]
+        obs_positions = obs_positions[None, :, :]
+        obs_radii = obs_radii[None, :]
+        n_obs = np.array([n_obs])
     n_data, n_time = states.shape[0], states.shape[1]
     constraint_to_go = np.empty(shape=(n_data, n_time), dtype=float)
     for n in range(n_data):
@@ -426,7 +429,7 @@ def compute_constraint_to_go(states, obs_positions, obs_radii, n_obs):
 
 def check_koz_constraint(states, obs_positions, obs_radii):
     constr_koz = np.linalg.norm(states[None, :, :2] - obs_positions[:, None, :], axis=2) - obs_radii[:, None]
-    constr_koz_violation = 1 * (constr_koz <= 0)
+    constr_koz_violation = 1 * (constr_koz < -1e-6)
 
     return constr_koz, constr_koz_violation
 
