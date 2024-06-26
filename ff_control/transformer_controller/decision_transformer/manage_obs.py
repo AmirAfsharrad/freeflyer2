@@ -62,7 +62,7 @@ class RpodDataset(Dataset):
                               for i in ix]).view(self.max_len, self.n_state).float()
         observations = torch.stack([self.data['observations'][i, :, :]
                                     for i in ix]).view(self.max_len, self.n_observation).float()
-        n_obs = [self.data['data_param']['n_obs'][i] for i in ix]
+        n_obs = torch.tensor([self.data['data_param']['n_obs'][i] for i in ix])
         actions = torch.stack([self.data['actions'][i, :, :]
                                for i in ix]).view(self.max_len, self.n_action).float()
         rtgs = torch.stack([self.data['rtgs'][i, :]
@@ -72,7 +72,7 @@ class RpodDataset(Dataset):
         timesteps = torch.tensor([[i for i in range(self.max_len)] for _ in ix]).view(self.max_len).long()
         attention_mask = torch.ones(1, self.max_len).view(self.max_len).long()
 
-        time_discr = self.data['data_param']['time_discr'][ix].item()
+        time_discr = torch.tensor([self.data['data_param']['time_discr'][ix].item()])
         time_sec = self.data['data_param']['time_sec'][ix].reshape((1, self.max_len))
 
         if self.target == False:
@@ -93,16 +93,16 @@ class RpodDataset(Dataset):
             else:
                 ctgs = torch.stack([self.data['ctgs'][i, :]
                                     for i in ix]).view(self.max_len, 1).float()
-                return (states, observations, actions, rtgs, ctgs, goal, target_states, target_actions, timesteps,
+                return (states, observations, n_obs, actions, rtgs, ctgs, goal, target_states, target_actions, timesteps,
                         attention_mask, time_discr, time_sec, ix)
 
     def getix(self, ix):
-        ix = [ix]
+        ix = torch.tensor([ix]).unsqueeze(0)
         states = torch.stack([self.data['states'][i, :, :]
                               for i in ix]).view(self.max_len, self.n_state).float().unsqueeze(0)
         observations = torch.stack([self.data['observations'][i, :, :]
                                     for i in ix]).view(self.max_len, self.n_observation).float().unsqueeze(0)
-        n_obs = [self.data['data_param']['n_obs'][i] for i in ix]
+        n_obs = torch.tensor([self.data['data_param']['n_obs'][i] for i in ix]).unsqueeze(0)
         actions = torch.stack([self.data['actions'][i, :, :]
                                for i in ix]).view(self.max_len, self.n_action).float().unsqueeze(0)
         rtgs = torch.stack([self.data['rtgs'][i, :]
@@ -112,7 +112,7 @@ class RpodDataset(Dataset):
         timesteps = torch.tensor([[i for i in range(self.max_len)] for _ in ix]).view(self.max_len).long().unsqueeze(0)
         attention_mask = torch.ones(1, self.max_len).view(self.max_len).long().unsqueeze(0)
 
-        time_discr = torch.tensor(self.data['data_param']['time_discr'][ix].item())
+        time_discr = torch.tensor([self.data['data_param']['time_discr'][ix].item()]).unsqueeze(0)
         time_sec = torch.tensor(self.data['data_param']['time_sec'][ix].reshape((1, self.max_len))).unsqueeze(0)
 
         if self.target == False:
@@ -120,7 +120,7 @@ class RpodDataset(Dataset):
                 return states, observations, n_obs, actions, rtgs, goal, timesteps, attention_mask, time_discr, time_sec, ix
             else:
                 ctgs = torch.stack([self.data['ctgs'][i, :]
-                                    for i in ix]).view(self.max_len, 1).float()
+                                    for i in ix]).view(self.max_len, 1).float().unsqueeze(0)
                 return states, observations, n_obs, actions, rtgs, ctgs, goal, timesteps, attention_mask, time_discr, time_sec, ix
         else:
             target_states = torch.stack([self.data['target_states'][i, :, :]
@@ -132,8 +132,8 @@ class RpodDataset(Dataset):
                 return states, observations, n_obs, actions, rtgs, goal, target_states, target_actions, timesteps, attention_mask, time_discr, time_sec, ix
             else:
                 ctgs = torch.stack([self.data['ctgs'][i, :]
-                                    for i in ix]).view(self.max_len, 1).float()
-                return states, observations, actions, rtgs, ctgs, goal, target_states, target_actions, timesteps, attention_mask, time_discr, time_sec, ix
+                                    for i in ix]).view(self.max_len, 1).float().unsqueeze(0)
+                return states, observations, n_obs, actions, rtgs, ctgs, goal, target_states, target_actions, timesteps, attention_mask, time_discr, time_sec, ix
 
     def get_data_size(self):
         return self.n_data
@@ -145,7 +145,7 @@ def transformer_import_config(model_name):
     config['mdp_constr'] = True
     config['timestep_norm'] = False
     if 'obs' in model_name:
-        config['dataset_scenario'] = 'var_obstacles'
+        config['dataset_scenario'] = 'var_obstacles_4_scenarios'
 
     return config
 
@@ -349,16 +349,18 @@ def get_DT_model(model_name, train_loader, eval_loader, checkpoint_name=None):
         action_tanh=False,
         n_positions=1024,
         n_layer=6,
-       n_head=6,
+        n_head=6,
         n_inner=None,
         resid_pdrop=0.1,
         embd_pdrop=0.1,
         attn_pdrop=0.1,
     )
     if 'ctgrtg' in model_name:
-        # model = AutonomousFreeflyerTransformer(config)
-        model = AutonomousFreeflyerTransformer_VarObs(config)
-        # model = AutonomousFreeflyerTransformer_VarObs_ConcatObservations(config)
+        if not(checkpoint_name is None) and 'concat' in checkpoint_name:
+            model = AutonomousFreeflyerTransformer_VarObs_ConcatObservations(config)
+        else:
+            # model = AutonomousFreeflyerTransformer(config)
+            model = AutonomousFreeflyerTransformer_VarObs(config)
     else:
         model = DecisionTransformerModel(config)
     model_size = sum(t.numel() for t in model.parameters())
@@ -648,6 +650,7 @@ def torch_model_inference_dyn(model, test_loader, data_sample, rtg_perc=1., ctg_
     n_state = test_loader.dataset.n_state
     n_time = test_loader.dataset.max_len
     n_action = test_loader.dataset.n_action
+    n_observation = test_loader.dataset.n_observation
     data_stats = copy.deepcopy(test_loader.dataset.data_stats)
     data_stats['states_mean'] = data_stats['states_mean'].float().to(device)
     data_stats['states_std'] = data_stats['states_std'].float().to(device)
@@ -660,19 +663,19 @@ def torch_model_inference_dyn(model, test_loader, data_sample, rtg_perc=1., ctg_
 
     # Unnormalize the data sample and compute orbital period (data sample is composed by tensors on the cpu)
     if test_loader.dataset.mdp_constr:
-        (states_i, observations_i, n_obs_i, actions_i, rtgs_i, ctgs_i, goal_i, timesteps_i, attention_mask_i, dt,
+        '''(states_i, observations_i, n_obs_i, actions_i, rtgs_i, ctgs_i, goal_i, timesteps_i, attention_mask_i, dt,
          time_sec, ix) = [item[0].unsqueeze(0) for item in data_sample]
-        n_obs_i = [data_sample[2][0][0].unsqueeze(0)]
-        # (states_i, observations_i, n_obs_i, actions_i, rtgs_i, ctgs_i, goal_i, timesteps_i, attention_mask_i, dt, 
-        #  time_sec, ix) = data_sample
-        ctgs_i = ctgs_i.view(1, n_time, 1).to(device)  # probably not needed??
+        n_obs_i = [data_sample[2][0][0].unsqueeze(0)]'''
+        (states_i, observations_i, n_obs_i, actions_i, rtgs_i, ctgs_i, goal_i, timesteps_i, attention_mask_i, dt, 
+         time_sec, ix) = data_sample
     else:
         states_i, observations_i, n_obs_i, actions_i, rtgs_i, goal_i, timesteps_i, attention_mask_i, dt, time_sec, ix \
             = data_sample
     states_i = states_i.to(device)
     observations_i = observations_i.to(device)
-    n_obs_i = [tensor.to(device) for tensor in n_obs_i]
+    n_obs_i = n_obs_i.item()
     rtgs_i = rtgs_i.to(device)
+    ctgs_i = ctgs_i.to(device)
     goal_i = goal_i.to(device)
     timesteps_i = timesteps_i.long().to(device)
     attention_mask_i = attention_mask_i.long().to(device)
@@ -688,6 +691,7 @@ def torch_model_inference_dyn(model, test_loader, data_sample, rtg_perc=1., ctg_
     states_dyn = torch.empty(size=(1, n_time, n_state), device=device).float()
     actions_dyn = torch.zeros(size=(1, n_time, n_action), device=device).float()
     rtgs_dyn = torch.empty(size=(1, n_time, 1), device=device).float()
+    observations_i_unnorm = torch.empty(size=(1, n_time, n_observation), device=device).float()
     if test_loader.dataset.mdp_constr:
         ctgs_dyn = torch.empty(size=(1, n_time, 1), device=device).float()
 
@@ -703,10 +707,10 @@ def torch_model_inference_dyn(model, test_loader, data_sample, rtg_perc=1., ctg_
         ctgs_dyn[:, 0, :] = ctgs_i[:, 0, :] * ctg_perc
     xypsi_dyn[:, 0] = (states_dyn[:, 0, :] * data_stats['states_std'][0]) + data_stats['states_mean'][0]
 
-    observations_i[0] = observations_i[0] * data_stats['observations_std'] + data_stats['observations_mean']
+    observations_i_unnorm[0] = observations_i[0] * data_stats['observations_std'] + data_stats['observations_mean']
 
-    reshaped_observation = observations_i[0, 0, :3 * n_obs_i[0]].view(-1, 3)
-    obs_pos = reshaped_observation[:n_obs_i[0], :2]
+    reshaped_observation = observations_i_unnorm[0, 0, :3 * n_obs_i].view(-1, 3)
+    obs_pos = reshaped_observation[:, :2]
     obs_rad = reshaped_observation[:, 2]
     obs = {
         'position': copy.deepcopy(obs_pos),
@@ -762,8 +766,8 @@ def torch_model_inference_dyn(model, test_loader, data_sample, rtg_perc=1., ctg_
                 reward_dyn_t = - torch.linalg.norm(dv_dyn[:, t], ord=1)
                 rtgs_dyn[:, t + 1, :] = rtgs_dyn[0, t] - reward_dyn_t
                 
-                reshaped_observation = observations_i[0, t, :3 * n_obs_i[0]].view(-1, 3)
-                obs_pos = reshaped_observation[:n_obs_i[0], :2]
+                reshaped_observation = observations_i_unnorm[0, t, :3 * n_obs_i].view(-1, 3)
+                obs_pos = reshaped_observation[:, :2]
                 obs_rad = reshaped_observation[:, 2]
                 obs = {
                     'position': copy.deepcopy(obs_pos),
@@ -819,19 +823,19 @@ def torch_model_inference_ol(model, test_loader, data_sample, rtg_perc=1., ctg_p
 
     # Unnormalize the data sample and compute orbital period (data sample is composed by tensors on the cpu)
     if test_loader.dataset.mdp_constr:
-        (states_i, observations_i, n_obs_i, actions_i, rtgs_i, ctgs_i, goal_i, timesteps_i, attention_mask_i, dt,
+        '''(states_i, observations_i, n_obs_i, actions_i, rtgs_i, ctgs_i, goal_i, timesteps_i, attention_mask_i, dt,
          time_sec, ix) = [item[0].unsqueeze(0) for item in data_sample]
-        n_obs_i = [data_sample[2][0][0].unsqueeze(0)]
-        # (states_i, observations_i, n_obs_i, actions_i, rtgs_i, ctgs_i, goal_i, timesteps_i, attention_mask_i, dt,
-        #  time_sec, ix) = data_sample
-        ctgs_i = ctgs_i.view(1, n_time, 1)
+        n_obs_i = [data_sample[2][0][0].unsqueeze(0)]'''
+        (states_i, observations_i, n_obs_i, actions_i, rtgs_i, ctgs_i, goal_i, timesteps_i, attention_mask_i, dt,
+         time_sec, ix) = data_sample
     else:
         states_i, observations_i, n_obs_i, actions_i, rtgs_i, goal_i, timesteps_i, attention_mask_i, dt, time_sec, ix \
             = data_sample
     states_i = states_i.to(device)
     observations_i = observations_i.to(device)
-    n_obs_i = [tensor.to(device) for tensor in n_obs_i]
+    n_obs_i = n_obs_i.item()
     rtgs_i = rtgs_i.to(device)
+    ctgs_i = ctgs_i.to(device)
     goal_i = goal_i.to(device)
     timesteps_i = timesteps_i.long().to(device)
     attention_mask_i = attention_mask_i.long().to(device)
@@ -844,6 +848,7 @@ def torch_model_inference_ol(model, test_loader, data_sample, rtg_perc=1., ctg_p
     states_ol = torch.empty(size=(1, n_time, n_state), device=device).float()
     actions_ol = torch.zeros(size=(1, n_time, n_action), device=device).float()
     rtgs_ol = torch.empty(size=(1, n_time, 1), device=device).float()
+    observations_i_unnorm = torch.empty(size=(1, n_time, n_observation), device=device).float()
     if test_loader.dataset.mdp_constr:
         ctgs_ol = torch.empty(size=(1, n_time, 1), device=device).float()
 
@@ -859,10 +864,10 @@ def torch_model_inference_ol(model, test_loader, data_sample, rtg_perc=1., ctg_p
 
     xypsi_ol[:, 0] = (states_ol[:, 0, :] * data_stats['states_std'][0]) + data_stats['states_mean'][0]
 
-    observations_i[0] = observations_i[0] * data_stats['observations_std'] + data_stats['observations_mean']
+    observations_i_unnorm[0] = observations_i[0] * data_stats['observations_std'] + data_stats['observations_mean']
 
-    reshaped_observation = observations_i[0, 0, :3 * n_obs_i[0]].view(-1, 3)
-    obs_pos = reshaped_observation[:n_obs_i[0], :2]
+    reshaped_observation = observations_i_unnorm[0, 0, :3 * n_obs_i].view(-1, 3)
+    obs_pos = reshaped_observation[:, :2]
     obs_rad = reshaped_observation[:, 2]
     obs = {
         'position': copy.deepcopy(obs_pos),
@@ -951,7 +956,7 @@ def torch_model_inference_ol(model, test_loader, data_sample, rtg_perc=1., ctg_p
                 reward_ol_t = - torch.linalg.norm(dv_ol[:, t], ord=1)
                 rtgs_ol[:, t + 1, :] = rtgs_ol[0, t] - reward_ol_t
                 
-                reshaped_observation = observations_i[0, t, :3 * n_obs_i[0]].view(-1, 3)
+                reshaped_observation = observations_i_unnorm[0, t, :3 * n_obs_i].view(-1, 3)
                 obs_pos = reshaped_observation[:, :2]
                 obs_rad = reshaped_observation[:, 2]
 

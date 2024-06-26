@@ -291,6 +291,7 @@ def ocp_no_obstacle_avoidance(model: FreeflyerModel, state_init, state_final, ob
     # Initial reference
     state_ref, action_ref = model.initial_guess_line(state_init, state_final)
     # Validate the format and structure of obstacle data before processing.
+    obs = copy.deepcopy(obs)
     check_obs_format(obs)
     obs['radius'] = (obs['radius'] + model.param['radius']) * ff.safety_margin
 
@@ -346,6 +347,7 @@ def ocp_no_obstacle_avoidance(model: FreeflyerModel, state_init, state_final, ob
 def ocp_obstacle_avoidance(model: FreeflyerModel, state_ref, action_ref, state_init, state_final, obs):
     # Initalization
     # Validate the format and structure of obstacle data before processing.
+    obs = copy.deepcopy(obs)
     check_obs_format(obs)
     obs['radius'] = (obs['radius'] + model.param['radius']) * ff.safety_margin
 

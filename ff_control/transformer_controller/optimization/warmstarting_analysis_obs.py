@@ -55,7 +55,7 @@ def for_computation(input_iterable):
            'obs' : [],
           }
    
-    test_sample = list(test_loader.dataset.getix(current_idx))
+    test_sample = test_loader.dataset.getix(current_idx)
     data_stats = test_loader.dataset.data_stats
     if sample_init_final:
         state_init, state_final = sample_init_target()
@@ -65,15 +65,12 @@ def for_computation(input_iterable):
 
         # print("YOOOOOHOOOOO", type(test_sample), test_sample)
         test_sample[0][0,:,:] = (torch.tensor(np.repeat(state_init[None,:], n_time_rpod, axis=0)) - data_stats['states_mean'])/(data_stats['states_std'] + 1e-6)
-        test_sample[1][0,:, :SINGLE_OBS_DIM * n_obs] = torch.tensor(generate_perfect_observations(obs['position'], obs['radius']))
-        test_sample[2][0] = torch.tensor([n_obs])
+        test_sample[1][0,:, :SINGLE_OBS_DIM * n_obs] = (torch.tensor(generate_perfect_observations(obs['position'], obs['radius'])) - data_stats['observations_mean'])/(data_stats['observations_std'] + 1e-6)
+        test_sample[2][0] = torch.tensor([[n_obs]])
         test_sample[3][0,:,:] = torch.zeros((n_time_rpod, N_ACTION))
         test_sample[4][0,:,0] = torch.zeros((n_time_rpod,))
-        test_sample[5][:,0] = torch.zeros((n_time_rpod,))
-        test_sample[5] = test_sample[5].unsqueeze(0)
+        test_sample[5][0,:,0] = torch.zeros((n_time_rpod,))
         test_sample[6][0,:,:] = (torch.tensor(np.repeat(state_final[None,:], n_time_rpod, axis=0)) - data_stats['goal_mean'])/(data_stats['goal_std'] + 1e-6)
-        test_sample[9] = test_sample[9].unsqueeze(0)
-        test_sample[11] = torch.tensor(test_sample[11])
         
         out['test_dataset_ix'] = test_sample[-1][0]
     else:
@@ -167,7 +164,8 @@ def for_computation(input_iterable):
         elif transformer_ws == 'ol':
             DT_trajectory, runtime_DT = DT_manager.torch_model_inference_ol(model, test_loader, test_sample, rtg_perc=1., ctg_perc=0., rtg=None, ctg_clipped=True)    
     out['J_DT'] = np.sum(la.norm(DT_trajectory['dv_' + transformer_ws], ord=1, axis=0))
-    states_ws_DT = np.hstack((DT_trajectory['xypsi_' + transformer_ws], state_final.reshape(-1,1))) # set warm start
+    states_ws_DT = np.hstack((DT_trajectory['xypsi_' + transformer_ws],
+                                  (DT_trajectory['xypsi_' + transformer_ws][:,-1] + ff_model.B_imp @ DT_trajectory['dv_' + transformer_ws][:, -1]).reshape((6,1)))) # set warm start
     actions_ws_DT = DT_trajectory['dv_' + transformer_ws] # set warm start
     # Save DT in the output dictionary
     out['runtime_DT'] = runtime_DT
@@ -193,13 +191,13 @@ if __name__ == '__main__':
 
     transformer_ws = 'dyn' # 'dyn'/'ol'
     transformer_model_name = 'checkpoint_ff_obs_ctgrtg'
-    checkpoint_name = 'checkpoints_sum_after_embed'
+    checkpoint_name = 'checkpoints_sum_after_embed_fixed'
     set_start_method('spawn')
     num_processes = 16
 
     # Get the datasets and loaders from the torch data
     import_config = DT_manager.transformer_import_config(transformer_model_name)
-    datasets, dataloaders = DT_manager.get_train_val_test_data(mdp_constr=import_config['mdp_constr'], dataset_scenario='var_obstacles', timestep_norm=import_config['timestep_norm'])
+    datasets, dataloaders = DT_manager.get_train_val_test_data(mdp_constr=import_config['mdp_constr'], dataset_scenario='var_obstacles_4_scenarios', timestep_norm=import_config['timestep_norm'])
     train_loader, eval_loader, test_loader = dataloaders
     model = DT_manager.get_DT_model(transformer_model_name, train_loader, eval_loader, checkpoint_name=checkpoint_name)
 
