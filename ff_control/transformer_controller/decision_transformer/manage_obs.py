@@ -145,7 +145,7 @@ def transformer_import_config(model_name):
     config['mdp_constr'] = True
     config['timestep_norm'] = False
     if 'obs' in model_name:
-        config['dataset_scenario'] = 'var_obstacles_4_scenarios'
+        config['dataset_scenario'] = 'var_obstacles_v5'
 
     return config
 
@@ -341,7 +341,7 @@ def get_DT_model(model_name, train_loader, eval_loader, checkpoint_name=None):
         state_dim=train_loader.dataset.n_state,
         obs_dim=train_loader.dataset.n_observation,
         single_obs_dim=train_loader.dataset.n_single_observation,
-        embed_entire_observation=False,
+        embed_entire_observation=True,
         act_dim=train_loader.dataset.n_action,
         hidden_size=384,
         max_ep_len=100,
@@ -356,7 +356,7 @@ def get_DT_model(model_name, train_loader, eval_loader, checkpoint_name=None):
         attn_pdrop=0.1,
     )
     if 'ctgrtg' in model_name:
-        if not(checkpoint_name is None) and 'concat' in checkpoint_name:
+        if not(checkpoint_name is None) and 'concat_after' in checkpoint_name:
             model = AutonomousFreeflyerTransformer_VarObs_ConcatObservations(config)
         else:
             # model = AutonomousFreeflyerTransformer(config)
