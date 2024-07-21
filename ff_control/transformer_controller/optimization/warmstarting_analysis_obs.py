@@ -191,19 +191,20 @@ if __name__ == '__main__':
 
     transformer_ws = 'dyn' # 'dyn'/'ol'
     transformer_model_name = 'checkpoint_ff_obs_ctgrtg'
-    checkpoint_name = 'checkpoints_sum_after_embed_fixed'
+    model_structure_scenario = "sum_after_embed_14_scenarios"
+    checkpoint_name = 'checkpoints_' + model_structure_scenario
     set_start_method('spawn')
     num_processes = 16
 
     # Get the datasets and loaders from the torch data
     import_config = DT_manager.transformer_import_config(transformer_model_name)
-    datasets, dataloaders = DT_manager.get_train_val_test_data(mdp_constr=import_config['mdp_constr'], dataset_scenario='var_obstacles_4_scenarios', timestep_norm=import_config['timestep_norm'])
+    datasets, dataloaders = DT_manager.get_train_val_test_data(mdp_constr=import_config['mdp_constr'], dataset_scenario='var_obstacles_v5', timestep_norm=import_config['timestep_norm'])
     train_loader, eval_loader, test_loader = dataloaders
     model = DT_manager.get_DT_model(transformer_model_name, train_loader, eval_loader, checkpoint_name=checkpoint_name)
 
     # Parallel for inputs
     # N_data_test = test_loader.dataset.n_data
-    N_data_test = 5000
+    N_data_test = 2000
     other_args = {
         'model' : model,
         'test_loader' : test_loader,
@@ -285,9 +286,9 @@ if __name__ == '__main__':
         else:
             i_unfeas_DT += [ i ]
         
-        if i % 2000 == 0:
+        if i % 1000 == 0:
             #  Save dataset (local folder for the workstation)
-            np.savez_compressed(root_folder + '/optimization/saved_files/warmstarting/ws_analysis_' + transformer_model_name + '_' + transformer_ws + str(i),
+            np.savez_compressed(root_folder + f'/optimization/saved_files/warmstarting_{model_structure_scenario}_gen/ws_analysis_' + transformer_model_name + '_' + transformer_ws + str(i),
                                 J_vect_scp_cvx = J_vect_scp_cvx,
                                 #J_vect_scp_line = J_vect_scp_line,
                                 J_vect_scp_DT = J_vect_scp_DT,
@@ -317,7 +318,7 @@ if __name__ == '__main__':
 
     
     #  Save dataset (local folder for the workstation)
-    np.savez_compressed(root_folder + '/optimization/saved_files/warmstarting/ws_analysis_' + transformer_model_name + '_' + transformer_ws,
+    np.savez_compressed(root_folder + f'/optimization/saved_files/warmstarting_{model_structure_scenario}_gen/ws_analysis_' + transformer_model_name + '_' + transformer_ws,
                         J_vect_scp_cvx = J_vect_scp_cvx,
                         #J_vect_scp_line = J_vect_scp_line,
                         J_vect_scp_DT = J_vect_scp_DT,

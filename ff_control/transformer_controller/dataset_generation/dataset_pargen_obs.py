@@ -32,8 +32,8 @@ def for_computation(input):
     # num_obstacles = 4
     # print(num_obstacles)
     # obs = generate_random_obstacles(num_obstacles=num_obstacles)
-    # obs_index = np.random.choice(np.arange(0, 4))
-    obs_index = 0
+    obs_index = np.random.choice(np.arange(9, 14))
+    # obs_index = 0
     obs = obs_list[obs_index]
 
     # Output dictionary initialization
@@ -89,7 +89,7 @@ def for_computation(input):
 
 if __name__ == '__main__':
 
-    N_data = 200000
+    N_data = 150000
     # N_data = 10
     set_start_method('spawn')
 

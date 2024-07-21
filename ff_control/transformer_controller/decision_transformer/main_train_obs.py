@@ -8,22 +8,45 @@ import matplotlib.pyplot as plt
 from transformers import DecisionTransformerConfig
 from decision_transformer.art import AutonomousFreeflyerTransformer_VarObs_ConcatObservations, AutonomousFreeflyerTransformer_VarObs
 import torch
+# from torch.utils.data.dataloader import DataLoader
+from torch.utils.data import ConcatDataset, DataLoader
 import decision_transformer.manage_obs as TTO_manager
 from decision_transformer.manage_obs import device
 
+pretrained = False
+pretrained_model_structure_scenario = "sum_after_embed"
+model_structure_scenario = "concat_after_embed_14_scenarios"
 model_name_4_saving = 'checkpoint_ff_obs_ctgrtg'
 mdp_constr = True
 model_config = TTO_manager.transformer_import_config(model_name_4_saving)
-datasets, dataloaders = TTO_manager.get_train_val_test_data(mdp_constr=model_config['mdp_constr'],
-                                                            dataset_scenario=model_config['dataset_scenario'],
+
+# datasets, dataloaders = TTO_manager.get_train_val_test_data(mdp_constr=model_config['mdp_constr'],
+#                                                             dataset_scenario=model_config['dataset_scenario'],
+#                                                             timestep_norm=model_config['timestep_norm'])
+
+# Define dataset scenarios
+dataset_scenarios = ["var_obstacles_4_scenarios", "var_obstacles_5_scenarios_1", "var_obstacles_5_scenarios_2"]  # Add as many scenarios as needed
+# dataset_scenarios = ["var_obstacles_4_scenarios", "var_obstacles_v5"]
+
+datasets, dataloaders = TTO_manager.get_train_val_test_data_combined(mdp_constr=model_config['mdp_constr'],
+                                                            dataset_scenarios=dataset_scenarios,
                                                             timestep_norm=model_config['timestep_norm'])
+
 train_loader, eval_loader, test_loader = dataloaders
-n_state = train_loader.dataset.n_state
-n_observation = train_loader.dataset.n_observation
-n_single_observation = train_loader.dataset.n_single_observation
-n_data = train_loader.dataset.n_data
-n_action = train_loader.dataset.n_action
-n_time = train_loader.dataset.max_len
+# n_state = train_loader.dataset.n_state
+# n_observation = train_loader.dataset.n_observation
+# n_single_observation = train_loader.dataset.n_single_observation
+# n_data = train_loader.dataset.n_data
+# n_action = train_loader.dataset.n_action
+# n_time = train_loader.dataset.max_len
+
+# Assuming all datasets have the same structure
+n_state = train_loader.dataset.datasets[0].n_state
+n_observation = train_loader.dataset.datasets[0].n_observation
+n_single_observation = train_loader.dataset.datasets[0].n_single_observation
+n_data = sum(len(d) for d in train_loader.dataset.datasets)
+n_action = train_loader.dataset.datasets[0].n_action
+n_time = train_loader.dataset.datasets[0].max_len
 
 # Transformer parameters
 config = DecisionTransformerConfig(
@@ -44,8 +67,8 @@ config = DecisionTransformerConfig(
     embd_pdrop=0.1,
     attn_pdrop=0.1,
     )
-model = AutonomousFreeflyerTransformer_VarObs(config)
-# model = AutonomousFreeflyerTransformer_VarObs_ConcatObservations(config)
+# model = AutonomousFreeflyerTransformer_VarObs(config)
+model = AutonomousFreeflyerTransformer_VarObs_ConcatObservations(config)
 model_size = sum(t.numel() for t in model.parameters())
 print(f"GPT size: {model_size/1000**2:.1f}M parameters")
 model.to(device);
@@ -53,11 +76,18 @@ model.to(device);
 from torch.optim import AdamW
 from accelerate import Accelerator
 from transformers import get_scheduler
-optimizer = AdamW(model.parameters(), lr=3e-5)
+optimizer = AdamW(model.parameters(), lr=3e-5 if not pretrained else 3e-6)
 accelerator = Accelerator(mixed_precision='no', gradient_accumulation_steps=8)
 model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
     model, optimizer, train_loader, eval_loader
 )
+
+# Load pre-trained model weights
+if pretrained:
+    model_path = root_folder + f'/decision_transformer/saved_files/checkpoints_{pretrained_model_structure_scenario}/' + model_name_4_saving
+    accelerator.load_state(model_path)
+    print("Pre-trained model loaded successfully!")
+
 num_train_epochs = 1
 num_update_steps_per_epoch = len(train_dataloader)
 num_training_steps = 10000000000
@@ -65,7 +95,7 @@ num_training_steps = 10000000000
 lr_scheduler = get_scheduler(
     name="linear",
     optimizer=optimizer,
-    num_warmup_steps=10,
+    num_warmup_steps=10 if not pretrained else 1,
     num_training_steps=num_training_steps,
 )
 
@@ -170,8 +200,8 @@ for epoch in range(num_train_epochs):
             if (step % (eval_steps * 10)) == 0:
                 print('Saving model..')
                 accelerator.save_state(
-                    root_folder + '/decision_transformer/saved_files/checkpoints/' + model_name_4_saving)
+                    root_folder + f'/decision_transformer/saved_files/checkpoints_{model_structure_scenario}/' + model_name_4_saving)
                 np.savez_compressed(
-                    root_folder + '/decision_transformer/saved_files/checkpoints/' + model_name_4_saving + '/log',
+                    root_folder + f'/decision_transformer/saved_files/checkpoints_{model_structure_scenario}/' + model_name_4_saving + '/log',
                     log=log
                     )

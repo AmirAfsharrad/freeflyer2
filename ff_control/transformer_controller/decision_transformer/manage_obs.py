@@ -256,6 +256,125 @@ def get_train_val_test_data(mdp_constr, dataset_scenario, timestep_norm):
     return datasets, dataloaders
 
 
+def get_train_val_test_data_combined(mdp_constr, dataset_scenarios, timestep_norm):
+    train_datasets = []
+    val_datasets = []
+    test_datasets = []
+
+    for dataset_scenario in dataset_scenarios:
+        # Import and normalize torch dataset, then save data statistics
+        torch_data, data_param = import_dataset_for_DT_eval_vXX(dataset_scenario, mdp_constr)
+        states_norm, states_mean, states_std = normalize(torch_data['torch_states'], timestep_norm)
+        observations_norm, observations_mean, observations_std = normalize(torch_data['torch_observations'], timestep_norm)
+        actions_norm, actions_mean, actions_std = normalize(torch_data['torch_actions'], timestep_norm)
+        goal_norm, goal_mean, goal_std = normalize(torch_data['torch_goal'], timestep_norm)
+        target_states_norm = states_norm[:, 1:, :].clone().detach()
+        target_actions_norm = actions_norm.clone().detach()
+        if mdp_constr:
+            rtgs_norm, rtgs_mean, rtgs_std = torch_data['torch_rtgs'], None, None
+            ctgs_norm, ctgs_mean, ctgs_std = torch_data['torch_ctgs'], None, None
+        else:
+            rtgs_norm, rtgs_mean, rtgs_std = normalize(torch_data['torch_rtgs'], timestep_norm)
+
+        data_stats = {
+            'states_mean': states_mean,
+            'states_std': states_std,
+            'observations_mean': observations_mean,
+            'observations_std': observations_std,
+            'actions_mean': actions_mean,
+            'actions_std': actions_std,
+            'rtgs_mean': rtgs_mean,
+            'rtgs_std': rtgs_std,
+            'ctgs_mean': ctgs_mean if mdp_constr else None,
+            'ctgs_std': ctgs_std if mdp_constr else None,
+            'goal_mean': goal_mean,
+            'goal_std': goal_std
+        }
+
+        # Split dataset into training and validation
+        n = int(0.9 * states_norm.shape[0])
+        train_data = {
+            'states': states_norm[:n, :],
+            'observations': observations_norm[:n, :],
+            'actions': actions_norm[:n, :],
+            'rtgs': rtgs_norm[:n, :],
+            'ctgs': ctgs_norm[:n, :] if mdp_constr else None,
+            'target_states': target_states_norm[:n, :],
+            'target_actions': target_actions_norm[:n, :],
+            'goal': goal_norm[:n, :],
+            'data_param': {
+                'time_discr': data_param['time_discr'][:n],
+                'time_sec': data_param['time_sec'][:n, :],
+                'n_obs': data_param['n_obs'][:n]
+            },
+            'data_stats': data_stats
+        }
+        val_data = {
+            'states': states_norm[n:, :],
+            'observations': observations_norm[n:, :],
+            'actions': actions_norm[n:, :],
+            'rtgs': rtgs_norm[n:, :],
+            'ctgs': ctgs_norm[n:, :] if mdp_constr else None,
+            'target_states': target_states_norm[n:, :],
+            'target_actions': target_actions_norm[n:, :],
+            'goal': goal_norm[n:, :],
+            'data_param': {
+                'time_discr': data_param['time_discr'][n:],
+                'time_sec': data_param['time_sec'][n:, :],
+                'n_obs': data_param['n_obs'][n:]
+            },
+            'data_stats': data_stats
+        }
+
+        # Create datasets for each scenario
+        train_dataset = RpodDataset(train_data, mdp_constr)
+        val_dataset = RpodDataset(val_data, mdp_constr)
+        test_dataset = RpodDataset(val_data, mdp_constr)
+        
+        # Append to combined dataset lists
+        train_datasets.append(train_dataset)
+        val_datasets.append(val_dataset)
+        test_datasets.append(test_dataset)
+
+    # Combine datasets
+    combined_train_dataset = torch.utils.data.ConcatDataset(train_datasets)
+    combined_val_dataset = torch.utils.data.ConcatDataset(val_datasets)
+    combined_test_dataset = torch.utils.data.ConcatDataset(test_datasets)
+
+    # Create data loaders for combined datasets
+    train_loader = DataLoader(
+        combined_train_dataset,
+        sampler=torch.utils.data.RandomSampler(
+            combined_train_dataset, replacement=True, num_samples=int(1e10)),
+        shuffle=False,
+        pin_memory=True,
+        batch_size=4,
+        num_workers=0,
+    )
+    eval_loader = DataLoader(
+        combined_val_dataset,
+        sampler=torch.utils.data.RandomSampler(
+            combined_val_dataset, replacement=True, num_samples=int(1e10)),
+        shuffle=False,
+        pin_memory=True,
+        batch_size=4,
+        num_workers=0,
+    )
+    test_loader = DataLoader(
+        combined_test_dataset,
+        sampler=torch.utils.data.RandomSampler(
+            combined_test_dataset, replacement=True, num_samples=int(1e10)),
+        shuffle=False,
+        pin_memory=True,
+        batch_size=1,
+        num_workers=0,
+    )
+    dataloaders = (train_loader, eval_loader, test_loader)
+
+    return (combined_train_dataset, combined_val_dataset, combined_test_dataset), dataloaders
+
+
+
 def import_dataset_for_DT_eval_vXX(dataset_scenario, mdp_constr):
     # Load the data
     print('Loading data from root/dataset/torch/...', end='')
@@ -341,7 +460,7 @@ def get_DT_model(model_name, train_loader, eval_loader, checkpoint_name=None):
         state_dim=train_loader.dataset.n_state,
         obs_dim=train_loader.dataset.n_observation,
         single_obs_dim=train_loader.dataset.n_single_observation,
-        embed_entire_observation=True,
+        embed_entire_observation=False,
         act_dim=train_loader.dataset.n_action,
         hidden_size=384,
         max_ep_len=100,
